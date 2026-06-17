@@ -1,0 +1,9 @@
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+desktop.ini
+*~
+
+# Local scratch / exports (do not commit personal data)
+*.local
+kinmu-backup-*.json

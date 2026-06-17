@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Laporan Lembur · 勤務時間記録表</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="titles">
+      <h1>Laporan Lembur <span class="ja">勤務時間記録表</span></h1>
+      <p class="sub">Input harian &rarr; export Excel Jepang per bulan</p>
+    </div>
+    <button id="exportBtn" class="btn primary" type="button">⬇ Export bulan ini</button>
+  </header>
+
+  <main>
+    <section class="monthbar card">
+      <button id="prevMonth" class="navbtn" type="button" aria-label="Bulan sebelumnya">‹</button>
+      <div class="monthlabel" id="monthLabel">—</div>
+      <button id="nextMonth" class="navbtn" type="button" aria-label="Bulan berikutnya">›</button>
+      <button id="todayBtn" class="btn small" type="button">⊙ Hari ini</button>
+      <span class="spacer"></span>
+      <details class="jump">
+        <summary class="btn small">Pindah periode</summary>
+        <div class="jumpbox">
+          <label>Bulan <select id="month"></select></label>
+          <label>Tahun <input id="year" type="number" min="2000" max="2100" /></label>
+        </div>
+      </details>
+      <span id="savedInd" class="saved" hidden>Tersimpan ✓</span>
+    </section>
+
+    <section id="summary" class="summary"></section>
+
+    <section class="card daycard" id="dayCard">
+      <div class="daycard-head">
+        <button id="dPrev" class="navbtn" type="button" aria-label="Hari sebelumnya">‹</button>
+        <div class="dtitlewrap">
+          <h2 id="dTitle">—</h2>
+          <span id="dBadge" class="dbadge" hidden></span>
+        </div>
+        <button id="dNext" class="navbtn" type="button" aria-label="Hari berikutnya">›</button>
+      </div>
+
+      <div class="timegrid">
+        <label>Jam masuk<input type="time" step="900" id="d-start" /></label>
+        <label>Jam keluar<input type="time" step="900" id="d-end" /></label>
+        <label>Istirahat<input type="time" step="900" id="d-brk" /></label>
+      </div>
+
+      <div class="otbig">
+        <span class="otlabel">Lembur hari ini</span>
+        <span class="otnum"><strong id="d-ot">0</strong> jam</span>
+        <span class="otsub" id="d-worksub"></span>
+      </div>
+
+      <label class="full">Aktivitas (業務内容)
+        <select id="d-activity"></select>
+      </label>
+      <p class="acthint" id="d-actHint"></p>
+
+      <div class="row2">
+        <label>Cuti berbayar (有給)
+          <select id="d-paid">
+            <option value="">Tidak</option>
+            <option value="0.5">Setengah hari (0.5)</option>
+            <option value="1">Sehari penuh (1.0)</option>
+          </select>
+        </label>
+        <label class="chk"><input type="checkbox" id="d-holiday" /> Kerja di hari libur (休日出勤)</label>
+      </div>
+
+      <div class="holidaybox" id="holidayBox" hidden>
+        <div class="timegrid">
+          <label>Masuk<input type="time" step="900" id="d-hstart" /></label>
+          <label>Keluar<input type="time" step="900" id="d-hend" /></label>
+          <label>Istirahat<input type="time" step="900" id="d-hbrk" /></label>
+        </div>
+      </div>
+
+      <label class="full">Catatan <span class="muted">(opsional)</span>
+        <input type="text" id="d-note" placeholder="mis. Golden Week" />
+      </label>
+    </section>
+
+    <section class="card calcard">
+      <div class="caltop">
+        <span class="caltitle">Kalender bulan ini</span>
+        <label class="defact">Aktivitas default: <select id="defaultActivity"></select></label>
+      </div>
+      <div class="weekhead"><span>Sen</span><span>Sel</span><span>Rab</span><span>Kam</span><span>Jum</span><span class="we">Sab</span><span class="we">Min</span></div>
+      <div id="calendar" class="calendar"></div>
+      <p class="hint"><span class="lg lg-work"></span> ada kerja/lembur &nbsp; <span class="lg lg-leave"></span> cuti &nbsp; <span class="lg lg-hol"></span> kerja hari libur — klik tanggal untuk mengisi.</p>
+    </section>
+
+    <details class="card" id="settingsBox">
+      <summary>⚙ Pengaturan data diri &amp; perusahaan <span class="muted">(disimpan di browser ini saja)</span></summary>
+      <div class="grid2">
+        <div class="field"><label for="set-name">氏名 — Nama lengkap</label><input id="set-name" type="text" placeholder="Nama lengkap Anda" /></div>
+        <div class="field"><label for="set-seal">本人印 — Nama stempel (katakana)</label><input id="set-seal" type="text" placeholder="katakana, mis. ヤマダ" /></div>
+        <div class="field"><label for="set-client">就業先 — Perusahaan tempat kerja</label><input id="set-client" type="text" placeholder="例：株式会社○○" /></div>
+        <div class="field"><label for="set-dept">就業部署 — Departemen</label><input id="set-dept" type="text" placeholder="(opsional)" /></div>
+        <div class="field"><label for="set-org">組織単位 — Unit organisasi</label><input id="set-org" type="text" placeholder="-" /></div>
+        <div class="field"><label for="set-biz">業務内容 — Jenis kontrak</label><input id="set-biz" type="text" placeholder="（委託業務）" /></div>
+        <div class="field"><label for="set-agency">派遣元 — Agen penyalur</label><input id="set-agency" type="text" placeholder="例：株式会社○○" /></div>
+        <div class="field"><label for="set-address">所在地 — Alamat agen</label><input id="set-address" type="text" placeholder="例：東京都○○市…" /></div>
+      </div>
+      <div class="row-actions">
+        <button id="saveSettings" class="btn primary" type="button">Simpan pengaturan</button>
+        <button id="backupBtn" class="btn" type="button">Backup (unduh .json)</button>
+        <label class="btn filelabel" for="restoreFile">Restore dari .json</label>
+        <input id="restoreFile" type="file" accept="application/json,.json" hidden />
+      </div>
+    </details>
+
+    <details class="card" id="presetBox">
+      <summary>📝 Daftar aktivitas (preset Indonesia &rarr; Jepang)</summary>
+      <div id="presetList" class="presetlist"></div>
+      <div class="newpreset">
+        <div class="field grow"><label for="newLabel">Label (Bahasa Indonesia)</label><input id="newLabel" type="text" placeholder="mis. Koreksi biaya komponen + tugas rutin" /></div>
+        <div class="field grow"><label for="newJa">Teks Jepang (業務内容)</label><textarea id="newJa" rows="2" placeholder="mis. 問題のある部品の…"></textarea></div>
+        <button id="addPreset" class="btn primary" type="button">Tambah preset</button>
+      </div>
+    </details>
+
+    <footer class="foot">
+      <p>🔒 Semua data tersimpan hanya di browser ini (localStorage). Tidak ada yang dikirim ke server atau ke GitHub. Gunakan tombol <strong>Backup</strong> secara berkala.</p>
+    </footer>
+  </main>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="vendor/fflate.min.js"></script>
+  <script src="js/timeutil.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/presets.js"></script>
+  <script src="js/excel.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
