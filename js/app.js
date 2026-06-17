@@ -127,8 +127,18 @@
     const dw = dow(month.year, month.month, selectedDay);
     $('dTitle').textContent = WD_FULL[dw] + ', ' + selectedDay + ' ' + MONTHS_ID[month.month - 1] + ' ' + month.year;
     const badge = $('dBadge');
-    if (dw % 6 === 0) { badge.hidden = false; badge.textContent = 'Akhir pekan'; badge.className = 'dbadge we'; }
-    else { badge.hidden = true; }
+    const now = new Date();
+    const isToday = now.getFullYear() === month.year && now.getMonth() + 1 === month.month && now.getDate() === selectedDay;
+    const weekend = dw % 6 === 0;
+    if (isToday) {
+      badge.hidden = false;
+      badge.textContent = weekend ? 'Hari ini · akhir pekan' : 'Hari ini';
+      badge.className = 'dbadge today';
+    } else if (weekend) {
+      badge.hidden = false; badge.textContent = 'Akhir pekan'; badge.className = 'dbadge we';
+    } else {
+      badge.hidden = true; badge.textContent = ''; badge.className = 'dbadge';
+    }
 
     $('d-start').value = padTime(d.start);
     $('d-end').value = padTime(d.end);

@@ -3,16 +3,28 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Laporan Lembur · 勤務時間記録表</title>
+  <meta name="theme-color" content="#2d4a7c" />
+  <title>勤務時間記録表 · Laporan Lembur</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@600;700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
-  <header class="topbar">
-    <div class="titles">
-      <h1>Laporan Lembur <span class="ja">勤務時間記録表</span></h1>
-      <p class="sub">Input harian &rarr; export Excel Jepang per bulan</p>
+  <header class="masthead">
+    <div class="mast-inner">
+      <div class="brand">
+        <span class="seal" aria-hidden="true">勤</span>
+        <span class="brand-text">
+          <span class="eyebrow">Laporan Lembur</span>
+          <span class="brand-title">勤務時間記録表</span>
+        </span>
+      </div>
+      <button id="exportBtn" class="btn primary" type="button">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
+        Export bulan ini
+      </button>
     </div>
-    <button id="exportBtn" class="btn primary" type="button">⬇ Export bulan ini</button>
   </header>
 
   <main>
@@ -20,16 +32,16 @@
       <button id="prevMonth" class="navbtn" type="button" aria-label="Bulan sebelumnya">‹</button>
       <div class="monthlabel" id="monthLabel">—</div>
       <button id="nextMonth" class="navbtn" type="button" aria-label="Bulan berikutnya">›</button>
-      <button id="todayBtn" class="btn small" type="button">⊙ Hari ini</button>
+      <button id="todayBtn" class="btn ghost small" type="button">Hari ini</button>
       <span class="spacer"></span>
       <details class="jump">
-        <summary class="btn small">Pindah periode</summary>
+        <summary class="btn ghost small">Pindah periode</summary>
         <div class="jumpbox">
           <label>Bulan <select id="month"></select></label>
           <label>Tahun <input id="year" type="number" min="2000" max="2100" /></label>
         </div>
       </details>
-      <span id="savedInd" class="saved" hidden>Tersimpan ✓</span>
+      <span id="savedInd" class="saved" hidden>✓ Tersimpan</span>
     </section>
 
     <section id="summary" class="summary"></section>
@@ -52,24 +64,24 @@
 
       <div class="otbig">
         <span class="otlabel">Lembur hari ini</span>
-        <span class="otnum"><strong id="d-ot">0</strong> jam</span>
+        <span class="otnum"><strong id="d-ot">0</strong><em>jam</em></span>
         <span class="otsub" id="d-worksub"></span>
       </div>
 
-      <label class="full">Aktivitas (業務内容)
+      <label class="full">Aktivitas <span class="jp">業務内容</span>
         <select id="d-activity"></select>
       </label>
       <p class="acthint" id="d-actHint"></p>
 
       <div class="row2">
-        <label>Cuti berbayar (有給)
+        <label class="sel">Cuti berbayar <span class="jp">有給</span>
           <select id="d-paid">
             <option value="">Tidak</option>
             <option value="0.5">Setengah hari (0.5)</option>
             <option value="1">Sehari penuh (1.0)</option>
           </select>
         </label>
-        <label class="chk"><input type="checkbox" id="d-holiday" /> Kerja di hari libur (休日出勤)</label>
+        <label class="chk"><input type="checkbox" id="d-holiday" /> <span>Kerja di hari libur <span class="jp">休日出勤</span></span></label>
       </div>
 
       <div class="holidaybox" id="holidayBox" hidden>
@@ -88,11 +100,11 @@
     <section class="card calcard">
       <div class="caltop">
         <span class="caltitle">Kalender bulan ini</span>
-        <label class="defact">Aktivitas default: <select id="defaultActivity"></select></label>
+        <label class="defact">Aktivitas default <select id="defaultActivity"></select></label>
       </div>
       <div class="weekhead"><span>Sen</span><span>Sel</span><span>Rab</span><span>Kam</span><span>Jum</span><span class="we">Sab</span><span class="we">Min</span></div>
       <div id="calendar" class="calendar"></div>
-      <p class="hint"><span class="lg lg-work"></span> ada kerja/lembur &nbsp; <span class="lg lg-leave"></span> cuti &nbsp; <span class="lg lg-hol"></span> kerja hari libur — klik tanggal untuk mengisi.</p>
+      <p class="hint"><span class="lg lg-work"></span> kerja / lembur &nbsp; <span class="lg lg-leave"></span> cuti &nbsp; <span class="lg lg-hol"></span> kerja hari libur — klik tanggal untuk mengisi.</p>
     </section>
 
     <details class="card" id="settingsBox">
@@ -109,14 +121,14 @@
       </div>
       <div class="row-actions">
         <button id="saveSettings" class="btn primary" type="button">Simpan pengaturan</button>
-        <button id="backupBtn" class="btn" type="button">Backup (unduh .json)</button>
+        <button id="backupBtn" class="btn" type="button">Backup (.json)</button>
         <label class="btn filelabel" for="restoreFile">Restore dari .json</label>
         <input id="restoreFile" type="file" accept="application/json,.json" hidden />
       </div>
     </details>
 
     <details class="card" id="presetBox">
-      <summary>📝 Daftar aktivitas (preset Indonesia &rarr; Jepang)</summary>
+      <summary>📝 Daftar aktivitas <span class="muted">(preset Indonesia → Jepang)</span></summary>
       <div id="presetList" class="presetlist"></div>
       <div class="newpreset">
         <div class="field grow"><label for="newLabel">Label (Bahasa Indonesia)</label><input id="newLabel" type="text" placeholder="mis. Koreksi biaya komponen + tugas rutin" /></div>
@@ -126,7 +138,7 @@
     </details>
 
     <footer class="foot">
-      <p>🔒 Semua data tersimpan hanya di browser ini (localStorage). Tidak ada yang dikirim ke server atau ke GitHub. Gunakan tombol <strong>Backup</strong> secara berkala.</p>
+      <p><span class="lock">🔒</span> Semua data tersimpan hanya di browser ini (localStorage). Tidak ada yang dikirim ke server atau ke GitHub. Gunakan <strong>Backup</strong> secara berkala.</p>
     </footer>
   </main>
 
