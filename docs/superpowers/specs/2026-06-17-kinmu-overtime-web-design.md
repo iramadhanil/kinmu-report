@@ -88,18 +88,28 @@ assets/template.xlsx    scrubbed blank template (no PII, formulas intact)
 A `setCell(xml, addr, innerXml, type)` helper finds `<c r="ADDR" …(/>|>…</c>)`, extracts the
 existing `s` style, and rewrites the cell — handling both empty and value cells.
 
-### Translation / presets
+### Translation (Indonesian → Japanese)
 
-A phrasebook of `{ id, labelId (Indonesian), textJa (Japanese) }`. Seeded with the user's
-existing sentence. Per-day dropdown + a "default activity for all working days" selector.
-Add/edit/delete presets; stored in localStorage. No machine translation (reliability for a
-formal document).
+Activity (業務内容) is typed in **Indonesian** (per-day `act` or a month `defaultAct`) and
+translated to Japanese **at export time**, with three layers for accuracy:
+
+1. **Glossary** — saved phrases `{ labelId (Indonesian), textJa (Japanese) }`. If the activity
+   text matches a label exactly, the export uses that approved Japanese (no machine call). Seeded
+   with the user's recurring sentence; used as month default so routine days are always exact.
+2. **Cache** (`kinmu.tm`) — every machine translation is stored, so re-exports are stable/instant
+   and work offline for already-seen phrases.
+3. **Machine** — Google (`translate_a/single`, primary) then MyMemory (fallback), `id→ja`.
+
+If a phrase can't be translated (offline, not cached, not in glossary), the Indonesian text is
+kept in the cell and that day is reported back to the user via `build()`'s `warnings`.
+Phrases/quick-insert and the glossary are managed in the "Frasa cepat & glosarium" panel.
 
 ### Data model (localStorage)
 
 - `kinmu.settings` — `{ name, sealKatakana, client, clientDept, orgUnit, bizContent, agency, address }`
-- `kinmu.presets` — `[{ id, labelId, textJa }]`
-- `kinmu.months` — `{ "2026-05": { year, month, defaultActivityId, days: { 7: { start, end, brk, activityId, paidLeave, hStart, hEnd, hBrk, note } } } }`
+- `kinmu.presets` — `[{ id, labelId, textJa }]` (glossary + quick-insert)
+- `kinmu.tm` — `{ indonesianText: japaneseText }` (translation cache)
+- `kinmu.months` — `{ "2026-05": { year, month, defaultAct, days: { 7: { start, end, brk, act, paidLeave, hStart, hEnd, hBrk, note } } } }` (`act`/`defaultAct` are Indonesian)
 - `kinmu.activeMonth` — `"2026-05"`
 
 Autosave on every edit.

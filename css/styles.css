@@ -202,7 +202,11 @@ input[type="checkbox"] { accent-color: var(--indigo); }
 .otbig .otsub { margin-left: auto; font-size: 12.5px; color: var(--ink-soft); text-align: right; }
 label.full { display: flex; flex-direction: column; gap: 7px; margin-top: 16px; font-size: 13px; font-weight: 700; color: var(--ink); }
 label.full select, label.full input { font-weight: 400; }
-.acthint { margin: 7px 2px 0; font-size: 12px; color: var(--ink-soft); font-style: italic; }
+.actrow { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 9px; }
+select.insert { font-size: 12.5px; padding: 7px 28px 7px 11px; max-width: 230px; }
+.acthint { font-size: 12px; color: var(--ink-soft); font-style: italic; }
+.acthint.ok { color: var(--teal); font-style: normal; font-weight: 700; }
+label.full textarea { font-weight: 400; resize: vertical; min-height: 44px; line-height: 1.5; }
 .row2 { display: flex; gap: 22px; flex-wrap: wrap; align-items: center; margin-top: 16px; }
 .row2 .sel { display: flex; flex-direction: column; gap: 7px; font-size: 13px; font-weight: 700; }
 .row2 .sel select { font-weight: 400; }
@@ -215,7 +219,7 @@ label.full select, label.full input { font-weight: 400; }
 .caltop { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
 .caltitle { font-family: var(--serif); font-weight: 700; font-size: 15px; }
 .defact { font-size: 11.5px; color: var(--ink-soft); display: flex; align-items: center; gap: 7px; font-weight: 700; }
-.defact select { font-size: 12.5px; padding: 6px 28px 6px 10px; max-width: 240px; font-weight: 400; }
+.defact select, .defact input { font-size: 12.5px; padding: 6px 10px; max-width: 260px; font-weight: 400; }
 .weekhead { display: grid; grid-template-columns: repeat(7, 1fr); gap: 7px; margin-bottom: 7px; }
 .weekhead span { text-align: center; font-size: 11px; color: var(--ink-soft); font-weight: 700; letter-spacing: .04em; }
 .weekhead .we { color: var(--verm); }

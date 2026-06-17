@@ -10,7 +10,7 @@ lalu meng-export-nya menjadi file Excel **勤務時間記録表** berbahasa Jepa
 
 1. Buka aplikasinya. Hari ini sudah otomatis terpilih.
 2. Isi **Jam masuk**, **Jam keluar** (istirahat otomatis 1 jam, bisa diubah). Lembur dihitung otomatis.
-3. Pilih **Aktivitas** (atau set 1 *aktivitas default* untuk semua hari kerja).
+3. Tulis **Aktivitas** dalam Bahasa Indonesia (atau set 1 *aktivitas default* untuk semua hari kerja). Saat export, otomatis diterjemahkan ke Jepang.
 4. Untuk **cuti** (有給) atau **kerja hari libur** (休日出勤), pakai pilihan di kartu hari.
 5. Semua **tersimpan otomatis** di browser. Pindah hari lewat kalender atau panah ‹ ›.
 6. Kapan saja, klik **Export bulan ini** → file `.xlsx` Jepang ter-download, siap kirim.
@@ -20,13 +20,15 @@ lalu meng-export-nya menjadi file Excel **勤務時間記録表** berbahasa Jepa
 - Buka **⚙ Pengaturan** dan isi nama (氏名), nama stempel katakana (本人印), perusahaan,
   agen, dan alamat. Data ini **hanya tersimpan di browser Anda** dan disisipkan otomatis
   saat export — tidak ikut ke GitHub.
-- Buka **📝 Daftar aktivitas** untuk menambah/ubah kalimat aktivitas (label Indonesia → teks Jepang).
+- (Opsional) Buka **📝 Frasa cepat & glosarium**: simpan kalimat berulang di sini. Jika teks aktivitas Anda sama persis dengan label tersimpan, export memakai teks Jepang yang sudah Anda setujui (bukan terjemahan mesin) — paling akurat untuk aktivitas rutin.
 
 ## Privasi
 
-Semua data (pengaturan, preset, catatan harian) disimpan **hanya di `localStorage` browser
-Anda**. Tidak ada server, tidak ada yang dikirim ke mana pun. Gunakan tombol **Backup
-(.json)** secara berkala, dan **Restore** bila ganti perangkat/browser.
+Semua data (pengaturan, frasa, catatan harian) disimpan **hanya di `localStorage` browser
+Anda**. Tidak ada server. **Pengecualian:** saat **export**, teks aktivitas dikirim ke
+layanan terjemah gratis online (Google, fallback MyMemory) untuk diterjemahkan ke Jepang;
+hasilnya di-cache agar tak perlu diterjemah ulang. Aktivitas yang cocok dengan glosarium
+tidak dikirim ke mana pun. Gunakan tombol **Backup (.json)** berkala, **Restore** bila ganti perangkat.
 
 ## Cara kerja (teknis singkat)
 

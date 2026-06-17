@@ -30,7 +30,26 @@
 
   function newMonth(y, m) {
     const p = Presets.getAll();
-    return { year: y, month: m, defaultActivityId: p[0] ? p[0].id : '', days: {} };
+    return { year: y, month: m, defaultAct: p[0] ? p[0].labelId : '', days: {} };
+  }
+  // one-time migration from the old preset-id model to free Indonesian text
+  function migrate() {
+    const ms = Store.getMonths(); let changed = false;
+    for (const k in ms) {
+      const mo = ms[k];
+      if (mo.defaultActivityId !== undefined) {
+        if (mo.defaultAct == null) { const p = Presets.find(mo.defaultActivityId); mo.defaultAct = p ? p.labelId : ''; }
+        delete mo.defaultActivityId; changed = true;
+      }
+      for (const dk in (mo.days || {})) {
+        const dd = mo.days[dk];
+        if (dd.activityId !== undefined) {
+          if (dd.act == null && dd.activityId !== '__none__') { const p = Presets.find(dd.activityId); if (p) dd.act = p.labelId; }
+          delete dd.activityId; changed = true;
+        }
+      }
+    }
+    if (changed) Store.saveMonths(ms);
   }
   function saveMonth() { months[activeKey] = month; Store.saveMonths(months); }
   const dayData = (d) => month.days[d] || {};
@@ -47,12 +66,10 @@
     clearTimeout(savedTimer); savedTimer = setTimeout(() => s.classList.remove('show'), 1200);
   }
 
-  // ---------- activity option list ----------
-  function activityOptions(selected) {
-    const opt = (v, t, sel) => '<option value="' + v + '"' + (sel ? ' selected' : '') + '>' + t + '</option>';
-    let html = opt('', '— pakai default bulan —', selected === '' || selected == null);
-    html += opt('__none__', '— kosong —', selected === '__none__');
-    for (const p of Presets.getAll()) html += opt(p.id, escapeHtml(p.labelId), p.id === selected);
+  // ---------- preset quick-insert ----------
+  function presetInsertOptions() {
+    let html = '<option value="">+ sisipkan frasa…</option>';
+    for (const p of Presets.getAll()) html += '<option value="' + escapeHtml(p.labelId) + '">' + escapeHtml(p.labelId) + '</option>';
     return html;
   }
 
@@ -87,9 +104,7 @@
     $('month').innerHTML = MONTHS_ID.map((nm, i) => '<option value="' + (i + 1) + '"' +
       (i + 1 === month.month ? ' selected' : '') + '>' + nm + '</option>').join('');
     $('year').value = month.year;
-    $('defaultActivity').innerHTML = '<option value="">— kosong —</option>' +
-      Presets.getAll().map((p) => '<option value="' + p.id + '"' +
-        (p.id === month.defaultActivityId ? ' selected' : '') + '>' + escapeHtml(p.labelId) + '</option>').join('');
+    $('defaultActivity').value = month.defaultAct || '';
   }
 
   // ---------- calendar ----------
@@ -143,7 +158,8 @@
     $('d-start').value = padTime(d.start);
     $('d-end').value = padTime(d.end);
     $('d-brk').value = padTime(d.brk);
-    $('d-activity').innerHTML = activityOptions(d.activityId == null ? '' : d.activityId);
+    $('d-act').value = d.act || '';
+    $('d-actPreset').innerHTML = presetInsertOptions();
     $('d-paid').value = d.paidLeave != null ? String(d.paidLeave) : '';
     const hasHol = !!(d.hStart || d.hEnd || d.hBrk);
     $('d-holiday').checked = hasHol;
@@ -170,12 +186,17 @@
     }
   }
   function updateActHint() {
-    const v = $('d-activity').value;
     const hint = $('d-actHint');
-    if (v === '') {
-      const def = Presets.find(month.defaultActivityId);
-      hint.textContent = def ? '→ memakai default: ' + def.labelId : '→ default bulan kosong (業務内容 dibiarkan kosong)';
-    } else { hint.textContent = ''; }
+    const v = ($('d-act').value || '').trim();
+    if (!v) {
+      const def = (month.defaultAct || '').trim();
+      hint.className = 'acthint';
+      hint.textContent = def ? '(kosong → pakai default: “' + def + '”)' : '(kosong → 業務内容 dibiarkan kosong)';
+      return;
+    }
+    const g = Presets.getAll().find((p) => (p.labelId || '').trim() === v && (p.textJa || '').trim());
+    if (g) { hint.className = 'acthint ok'; hint.textContent = '✓ pakai terjemahan tersimpan (glosarium)'; }
+    else { hint.className = 'acthint'; hint.textContent = '↻ diterjemahkan otomatis ke Jepang saat export'; }
   }
 
   function readDayCard() {
@@ -186,8 +207,8 @@
     let brk = $('d-brk').value;
     if (start && !brk) { brk = DEFAULT_BREAK; $('d-brk').value = DEFAULT_BREAK; }
     if (brk) d.brk = brk;
-    const act = $('d-activity').value;
-    if (act !== '') d.activityId = act; // '' = use month default (not stored)
+    const act = $('d-act').value.trim();
+    if (act) d.act = act; // Indonesian; translated at export. Empty = use month default.
     const paid = $('d-paid').value;
     if (paid) d.paidLeave = Number(paid);
     if ($('d-holiday').checked) {
@@ -272,16 +293,20 @@
     if (!settings.name) {
       if (!confirm('氏名 (Nama) belum diisi di Pengaturan. Export tanpa nama?')) return;
     }
-    const btn = $('exportBtn'); btn.disabled = true; const old = btn.textContent; btn.textContent = 'Memproses…';
+    const btn = $('exportBtn'); btn.disabled = true; const old = btn.textContent; btn.textContent = 'Menerjemahkan…';
     try {
-      await Excel.download(month, settings);
-      toast('Excel dibuat: ' + Excel.filename(month), 'ok');
+      const warnings = await Excel.download(month, settings);
+      if (warnings && warnings.length) {
+        toast('Excel dibuat, tapi ' + warnings.length + ' hari gagal diterjemah (offline?) — tgl ' + warnings.join(', ') + ' tetap Indonesia. Export ulang saat online.', 'err');
+      } else {
+        toast('Excel dibuat: ' + Excel.filename(month), 'ok');
+      }
     } catch (err) { console.error(err); toast('Gagal export: ' + err.message, 'err'); }
     finally { btn.disabled = false; btn.textContent = old; }
   }
   function doBackup() {
     const data = { _app: 'kinmu-report', _v: 1, exportedAt: new Date().toISOString(),
-      settings: Store.getSettings(), presets: Presets.getAll(), months: Store.getMonths() };
+      settings: Store.getSettings(), presets: Presets.getAll(), months: Store.getMonths(), tm: Store.get(Store.K.tm, {}) };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -298,6 +323,7 @@
         if (data.settings) Store.saveSettings(data.settings);
         if (data.presets) Store.set(Store.K.presets, data.presets);
         if (data.months) Store.saveMonths(data.months);
+        if (data.tm) Store.set(Store.K.tm, data.tm);
         toast('Restore berhasil, memuat ulang…', 'ok');
         setTimeout(() => location.reload(), 800);
       } catch (err) { toast('File backup tidak valid', 'err'); }
@@ -336,9 +362,14 @@
     $('year').addEventListener('change', () => {
       const y = +$('year').value; if (y >= 2000 && y <= 2100) switchMonth(y, month.month);
     });
-    $('defaultActivity').addEventListener('change', () => {
-      month.defaultActivityId = $('defaultActivity').value; saveMonth();
-      updateActHint(); renderCalendar(); flashSaved();
+    $('defaultActivity').addEventListener('input', () => {
+      month.defaultAct = $('defaultActivity').value.trim(); saveMonth();
+      updateActHint(); flashSaved();
+    });
+    $('d-actPreset').addEventListener('change', () => {
+      const v = $('d-actPreset').value; if (!v) return;
+      $('d-act').value = v; $('d-actPreset').value = '';
+      onDayChange();
     });
 
     $('saveSettings').addEventListener('click', () => {
@@ -378,6 +409,8 @@
 
   // ---------- init ----------
   function init() {
+    migrate();
+    months = Store.getMonths();
     const t = new Date();
     activeKey = Store.getActive();
     if (activeKey && months[activeKey]) {

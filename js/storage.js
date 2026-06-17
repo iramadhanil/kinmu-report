@@ -8,6 +8,7 @@ const Store = (() => {
     presets: 'kinmu.presets',
     months: 'kinmu.months',
     active: 'kinmu.activeMonth',
+    tm: 'kinmu.tm', // translation memory cache: { indonesianText: japaneseText }
   };
 
   function get(key, def) {
