@@ -51,7 +51,8 @@
     }
     if (changed) Store.saveMonths(ms);
   }
-  function saveMonth() { months[activeKey] = month; Store.saveMonths(months); }
+  function markChanged() { Store.set('kinmu.updatedAt', Date.now()); scheduleSync(); }
+  function saveMonth() { month._u = Date.now(); months[activeKey] = month; Store.saveMonths(months); markChanged(); }
   const dayData = (d) => month.days[d] || {};
 
   // ---------- toast / saved ----------
@@ -331,6 +332,77 @@
     r.readAsText(file); e.target.value = '';
   }
 
+  // ---------- cloud sync (GitHub Gist) ----------
+  let syncTimer, syncSuspended = false;
+  const nowTime = () => new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+
+  function collectData() {
+    return { _app: 'kinmu-report', _v: 1,
+      updatedAt: Store.get('kinmu.updatedAt', 0) || Date.now(),
+      settings: Store.getSettings(), presets: Presets.getAll(),
+      months: Store.getMonths(), tm: Store.get(Store.K.tm, {}) };
+  }
+  function applyData(d) {
+    if (d.settings) Store.saveSettings(d.settings);
+    if (d.presets) Store.set(Store.K.presets, d.presets);
+    if (d.months) Store.saveMonths(d.months);
+    if (d.tm) Store.set(Store.K.tm, d.tm);
+    Store.set('kinmu.updatedAt', d.updatedAt || Date.now());
+  }
+  // months merge per-month by _u; tm union; settings/presets newer-payload wins
+  function mergeData(L, R) {
+    if (!R || !R._app) return L;
+    const out = { _app: 'kinmu-report', _v: 1, months: {} };
+    const lm = L.months || {}, rm = R.months || {};
+    for (const k of new Set([...Object.keys(lm), ...Object.keys(rm)])) {
+      if (!lm[k]) out.months[k] = rm[k];
+      else if (!rm[k]) out.months[k] = lm[k];
+      else out.months[k] = ((rm[k]._u || 0) > (lm[k]._u || 0)) ? rm[k] : lm[k];
+    }
+    out.tm = Object.assign({}, R.tm || {}, L.tm || {});
+    const rNewer = (R.updatedAt || 0) > (L.updatedAt || 0);
+    out.settings = rNewer ? (R.settings || L.settings || {}) : (L.settings || R.settings || {});
+    out.presets = rNewer ? (R.presets || L.presets || []) : (L.presets || R.presets || []);
+    out.updatedAt = Math.max(L.updatedAt || 0, R.updatedAt || 0);
+    return out;
+  }
+  function setSyncStatus(msg, kind) {
+    const el = $('syncStatus');
+    if (el) { el.textContent = msg ? '☁ ' + msg : ''; el.className = 'syncstatus' + (kind ? ' ' + kind : ''); }
+  }
+  function renderSyncUI() {
+    const on = Sync.configured();
+    if ($('syncDisconnected')) $('syncDisconnected').hidden = on;
+    if ($('syncConnected')) $('syncConnected').hidden = !on;
+    if ($('syncSummary')) $('syncSummary').textContent = on ? '· aktif' : '· belum aktif';
+    if (on && $('syncGistId')) $('syncGistId').textContent = (Sync.gistId() || '').slice(0, 10) + '…';
+  }
+  function scheduleSync() {
+    if (syncSuspended || !Sync.configured()) return;
+    setSyncStatus('menyimpan…', 'pending');
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(async () => {
+      try { await Sync.push(collectData()); setSyncStatus('tersimpan ' + nowTime(), 'ok'); }
+      catch (e) { setSyncStatus('gagal: ' + e.message, 'err'); }
+    }, 2500);
+  }
+  async function pullMergeApply() {
+    const remote = await Sync.pull();
+    const merged = mergeData(collectData(), remote);
+    syncSuspended = true;
+    applyData(merged);
+    loadState(); renderAll();
+    syncSuspended = false;
+    await Sync.push(merged); // keep remote consistent with the merge
+  }
+  async function initialSync() {
+    renderSyncUI();
+    if (!Sync.configured()) return;
+    setSyncStatus('menyinkronkan…', 'pending');
+    try { await pullMergeApply(); setSyncStatus('tersinkron ✓ ' + nowTime(), 'ok'); }
+    catch (e) { syncSuspended = false; setSyncStatus('gagal sync: ' + e.message, 'err'); }
+  }
+
   // ---------- events ----------
   function bindEvents() {
     $('dayCard').addEventListener('change', onDayChange);
@@ -379,27 +451,55 @@
         orgUnit: $('set-org').value.trim(), bizContent: $('set-biz').value.trim(),
         agency: $('set-agency').value.trim(), address: $('set-address').value.trim(),
       };
-      Store.saveSettings(settings); toast('Pengaturan tersimpan', 'ok');
+      Store.saveSettings(settings); markChanged(); toast('Pengaturan tersimpan', 'ok');
     });
 
     $('addPreset').addEventListener('click', () => {
       const label = $('newLabel').value.trim(), ja = $('newJa').value.trim();
       if (!label || !ja) { toast('Isi label dan teks Jepang', 'err'); return; }
-      Presets.add(label, ja);
+      Presets.add(label, ja); markChanged();
       $('newLabel').value = ''; $('newJa').value = '';
-      renderPresets(); renderMonthBar(); renderDayCard(); toast('Preset ditambahkan', 'ok');
+      renderPresets(); renderMonthBar(); renderDayCard(); toast('Frasa ditambahkan', 'ok');
     });
     $('presetList').addEventListener('click', (e) => {
       const item = e.target.closest('.presetitem'); if (!item) return;
       const id = item.getAttribute('data-id');
       if (e.target.classList.contains('pi-save')) {
         Presets.update(id, item.querySelector('.pi-label').value, item.querySelector('.pi-ja').value);
-        renderMonthBar(); renderDayCard(); toast('Preset disimpan', 'ok');
+        markChanged(); renderMonthBar(); renderDayCard(); toast('Frasa disimpan', 'ok');
       } else if (e.target.classList.contains('pi-del')) {
-        if (confirm('Hapus preset ini?')) {
-          Presets.remove(id); renderPresets(); renderMonthBar(); renderDayCard(); toast('Preset dihapus');
+        if (confirm('Hapus frasa ini?')) {
+          Presets.remove(id); markChanged(); renderPresets(); renderMonthBar(); renderDayCard(); toast('Frasa dihapus');
         }
       }
+    });
+
+    $('ghConnect').addEventListener('click', async () => {
+      const token = $('ghToken').value.trim();
+      if (!token) { toast('Tempel token GitHub dulu', 'err'); return; }
+      const btn = $('ghConnect'); btn.disabled = true; const old = btn.textContent; btn.textContent = 'Menghubungkan…';
+      try {
+        await Sync.connect(token);
+        $('ghToken').value = '';
+        renderSyncUI();
+        await initialSync();
+        toast('Tersambung & tersinkron ✓', 'ok');
+      } catch (e) { toast('Gagal: ' + e.message, 'err'); }
+      finally { btn.disabled = false; btn.textContent = old; }
+    });
+    $('syncPull').addEventListener('click', async () => {
+      setSyncStatus('menarik…', 'pending');
+      try { await pullMergeApply(); setSyncStatus('tersinkron ✓ ' + nowTime(), 'ok'); toast('Data terbaru ditarik', 'ok'); }
+      catch (e) { syncSuspended = false; toast('Gagal tarik: ' + e.message, 'err'); }
+    });
+    $('syncPush').addEventListener('click', async () => {
+      setSyncStatus('mengirim…', 'pending');
+      try { await Sync.push(collectData()); setSyncStatus('terkirim ✓ ' + nowTime(), 'ok'); toast('Data dikirim ke cloud', 'ok'); }
+      catch (e) { toast('Gagal kirim: ' + e.message, 'err'); }
+    });
+    $('ghDisconnect').addEventListener('click', () => {
+      if (!confirm('Putuskan sinkronisasi di perangkat ini? Data di cloud tetap ada.')) return;
+      Sync.clear(); renderSyncUI(); setSyncStatus('', ''); toast('Sinkronisasi diputus');
     });
 
     $('exportBtn').addEventListener('click', doExport);
@@ -408,26 +508,31 @@
   }
 
   // ---------- init ----------
-  function init() {
-    migrate();
+  function loadState() {
     months = Store.getMonths();
-    const t = new Date();
+    settings = Store.getSettings();
     activeKey = Store.getActive();
-    if (activeKey && months[activeKey]) {
-      month = months[activeKey];
-    } else {
+    if (!(activeKey && months[activeKey])) {
+      const t = new Date();
       month = newMonth(t.getFullYear(), t.getMonth() + 1);
       activeKey = Store.monthKey(month.year, month.month);
-      saveMonth(); Store.setActive(activeKey);
+      months[activeKey] = month; Store.saveMonths(months); Store.setActive(activeKey);
+    } else {
+      month = months[activeKey];
     }
-    selectedDay = defaultDayFor(month.year, month.month);
-    renderMonthBar();
-    renderSettings();
-    renderPresets();
-    renderSummary();
-    renderDayCard();
-    renderCalendar();
+    selectedDay = Math.min(selectedDay || defaultDayFor(month.year, month.month), daysInMonth(month.year, month.month));
+  }
+  function renderAll() {
+    renderMonthBar(); renderSettings(); renderPresets();
+    renderSummary(); renderDayCard(); renderCalendar(); renderSyncUI();
+  }
+  function init() {
+    migrate();
+    selectedDay = null;
+    loadState();
+    renderAll();
     bindEvents();
+    initialSync(); // async: pulls + merges remote if this device is connected
   }
   document.addEventListener('DOMContentLoaded', init);
 })();
