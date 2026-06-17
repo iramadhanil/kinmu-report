@@ -22,6 +22,18 @@ lalu meng-export-nya menjadi file Excel **勤務時間記録表** berbahasa Jepa
   saat export — tidak ikut ke GitHub.
 - (Opsional) Buka **📝 Frasa cepat & glosarium**: simpan kalimat berulang di sini. Jika teks aktivitas Anda sama persis dengan label tersimpan, export memakai teks Jepang yang sudah Anda setujui (bukan terjemahan mesin) — paling akurat untuk aktivitas rutin.
 
+## Sinkronisasi antar perangkat (opsional, gratis)
+
+Agar data tersinkron HP ↔ laptop, buka **☁ Sinkronisasi antar perangkat** di app:
+
+1. Buat token GitHub (cukup scope `gist`) — ada tautan langsung di app.
+2. Tempel token, klik **Hubungkan**. Ulangi di tiap perangkat dengan token yang sama.
+
+Data disimpan di satu **gist privat** di akun GitHub Anda. Perubahan tersinkron otomatis
+(ada juga tombol **Tarik**/**Kirim** manual). Token hanya disimpan di browser tiap perangkat.
+Edit pada bulan berbeda di perangkat berbeda tidak saling menimpa (digabung per-bulan); edit
+bersamaan pada bulan yang sama → versi terbaru yang menang.
+
 ## Privasi
 
 Semua data (pengaturan, frasa, catatan harian) disimpan **hanya di `localStorage` browser
