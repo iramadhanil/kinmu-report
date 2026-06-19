@@ -22,22 +22,26 @@ lalu meng-export-nya menjadi file Excel **勤務時間記録表** berbahasa Jepa
   saat export — tidak ikut ke GitHub.
 - (Opsional) Buka **📝 Frasa cepat & glosarium**: simpan kalimat berulang di sini. Jika teks aktivitas Anda sama persis dengan label tersimpan, export memakai teks Jepang yang sudah Anda setujui (bukan terjemahan mesin) — paling akurat untuk aktivitas rutin.
 
-## Sinkronisasi antar perangkat (opsional, gratis)
+## Akun & penyimpanan cloud (data tidak hilang)
 
-Agar data tersinkron HP ↔ laptop, buka **☁ Sinkronisasi antar perangkat** di app:
+Data disimpan di **cloud** (Supabase — proyek privat milik Anda sendiri) sebagai sumber
+utama, jadi **tidak hilang walau riwayat browser dihapus** dan bisa dibuka di perangkat
+manapun.
 
-1. Buat token GitHub (cukup scope `gist`) — ada tautan langsung di app.
-2. Tempel token, klik **Hubungkan**. Ulangi di tiap perangkat dengan token yang sama.
+1. Buka **☁ Akun & penyimpanan cloud** → isi **email & password** → **Daftar akun baru**
+   (sekali saja; langsung aktif, tanpa verifikasi email).
+2. Di perangkat lain, cukup **Masuk** dengan email & password yang sama.
 
-Data disimpan di satu **gist privat** di akun GitHub Anda. Perubahan tersinkron otomatis
-(ada juga tombol **Tarik**/**Kirim** manual). Token hanya disimpan di browser tiap perangkat.
-Edit pada bulan berbeda di perangkat berbeda tidak saling menimpa (digabung per-bulan); edit
-bersamaan pada bulan yang sama → versi terbaru yang menang.
+Perubahan tersimpan otomatis ke cloud (status terlihat di bar atas). Menghapus riwayat
+browser hanya membuat Anda perlu **Masuk** lagi — data tetap utuh di cloud. Edit di bulan
+berbeda pada perangkat berbeda tidak saling menimpa (digabung per-bulan). Data hanya hilang
+jika Anda menghapusnya sendiri.
 
 ## Privasi
 
-Semua data (pengaturan, frasa, catatan harian) disimpan **hanya di `localStorage` browser
-Anda**. Tidak ada server. **Pengecualian:** saat **export**, teks aktivitas dikirim ke
+Saat **masuk**, data Anda tersimpan di proyek **Supabase privat milik Anda sendiri** (cloud,
+sumber utama) dan di-cache di `localStorage` browser. Tanpa masuk, data hanya di `localStorage`.
+**Pengecualian:** saat **export**, teks aktivitas dikirim ke
 layanan terjemah gratis online (Google, fallback MyMemory) untuk diterjemahkan ke Jepang;
 hasilnya di-cache agar tak perlu diterjemah ulang. Aktivitas yang cocok dengan glosarium
 tidak dikirim ke mana pun. Gunakan tombol **Backup (.json)** berkala, **Restore** bila ganti perangkat.
