@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@600;700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=4" />
+  <link rel="stylesheet" href="css/styles.css?v=5" />
 </head>
 <body>
   <header class="masthead">
@@ -111,26 +111,26 @@
       <p class="hint"><span class="lg lg-work"></span> kerja / lembur &nbsp; <span class="lg lg-leave"></span> cuti &nbsp; <span class="lg lg-hol"></span> kerja hari libur — klik tanggal untuk mengisi.</p>
     </section>
 
-    <details class="card" id="syncBox">
-      <summary>☁ Sinkronisasi antar perangkat <span id="syncSummary" class="muted">· belum aktif</span></summary>
-      <div id="syncDisconnected">
-        <p class="hint">Simpan &amp; sinkronkan data HP ↔ laptop lewat <strong>GitHub Gist privat</strong> (gratis, di akun GitHub Anda sendiri).</p>
-        <ol class="synchelp">
-          <li>Buat token GitHub (cukup scope <code>gist</code>): <a href="https://github.com/settings/tokens/new?scopes=gist&amp;description=kinmu-report" target="_blank" rel="noopener">buka halaman token →</a> lalu klik <em>Generate token</em> &amp; salin.</li>
-          <li>Tempel token di bawah &amp; klik <em>Hubungkan</em>. Ulangi di tiap perangkat dengan token yang sama.</li>
-        </ol>
-        <div class="row-actions">
-          <input id="ghToken" type="password" autocomplete="off" placeholder="ghp_… token GitHub" style="flex:1; min-width:220px" />
-          <button id="ghConnect" class="btn primary" type="button">Hubungkan</button>
+    <details class="card" id="authBox">
+      <summary>☁ Akun &amp; penyimpanan cloud <span id="authSummary" class="muted">· belum masuk</span></summary>
+      <div id="authLoggedOut">
+        <p class="hint">Masuk agar data Anda <strong>selalu tersimpan di cloud</strong> — aman walau riwayat browser dihapus, bisa dibuka di HP &amp; laptop. Belum punya akun? <strong>Daftar</strong> sekali (gratis, cukup email &amp; password).</p>
+        <div class="authgrid">
+          <input id="authEmail" type="email" autocomplete="username" placeholder="Email" />
+          <input id="authPass" type="password" autocomplete="current-password" placeholder="Password (min. 6 karakter)" />
         </div>
-        <p class="hint muted">🔒 Token disimpan hanya di browser ini (tidak ikut ke GitHub repo). Data tersimpan di gist <em>privat</em> milik Anda.</p>
-      </div>
-      <div id="syncConnected" hidden>
-        <p class="hint">✓ Terhubung ke gist privat Anda (<code id="syncGistId"></code>). Perubahan tersinkron otomatis.</p>
         <div class="row-actions">
-          <button id="syncPull" class="btn" type="button">⬇ Tarik dari cloud</button>
-          <button id="syncPush" class="btn" type="button">⬆ Kirim ke cloud</button>
-          <button id="ghDisconnect" class="btn danger" type="button">Putuskan</button>
+          <button id="authLogin" class="btn primary" type="button">Masuk</button>
+          <button id="authSignup" class="btn" type="button">Daftar akun baru</button>
+        </div>
+        <p class="hint muted">🔒 Data tersimpan di proyek Supabase <em>privat</em> milik Anda sendiri. Tanpa masuk, data hanya tersimpan sementara di browser ini.</p>
+      </div>
+      <div id="authLoggedIn" hidden>
+        <p class="hint">✓ Masuk sebagai <strong id="authUserEmail"></strong>. Perubahan tersimpan otomatis ke cloud.</p>
+        <div class="row-actions">
+          <button id="cloudPull" class="btn" type="button">⬇ Muat ulang dari cloud</button>
+          <button id="authChangePass" class="btn" type="button">Ganti password</button>
+          <button id="authLogout" class="btn danger" type="button">Keluar</button>
         </div>
       </div>
     </details>
@@ -173,12 +173,13 @@
 
   <div id="toast" class="toast" hidden></div>
 
-  <script src="vendor/fflate.min.js?v=4"></script>
-  <script src="js/timeutil.js?v=4"></script>
-  <script src="js/storage.js?v=4"></script>
-  <script src="js/presets.js?v=4"></script>
-  <script src="js/excel.js?v=4"></script>
-  <script src="js/sync.js?v=4"></script>
-  <script src="js/app.js?v=4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="vendor/fflate.min.js?v=5"></script>
+  <script src="js/timeutil.js?v=5"></script>
+  <script src="js/storage.js?v=5"></script>
+  <script src="js/presets.js?v=5"></script>
+  <script src="js/excel.js?v=5"></script>
+  <script src="js/cloud.js?v=5"></script>
+  <script src="js/app.js?v=5"></script>
 </body>
 </html>

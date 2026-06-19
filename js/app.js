@@ -332,7 +332,7 @@
     r.readAsText(file); e.target.value = '';
   }
 
-  // ---------- cloud sync (GitHub Gist) ----------
+  // ---------- cloud storage (Supabase) ----------
   let syncTimer, syncSuspended = false;
   const nowTime = () => new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 
@@ -343,6 +343,7 @@
       months: Store.getMonths(), tm: Store.get(Store.K.tm, {}) };
   }
   function applyData(d) {
+    if (!d) return;
     if (d.settings) Store.saveSettings(d.settings);
     if (d.presets) Store.set(Store.K.presets, d.presets);
     if (d.months) Store.saveMonths(d.months);
@@ -351,56 +352,83 @@
   }
   // months merge per-month by _u; tm union; settings/presets newer-payload wins
   function mergeData(L, R) {
-    if (!R || !R._app) return L;
+    if (!R || !R._app) return L || R;
     const out = { _app: 'kinmu-report', _v: 1, months: {} };
-    const lm = L.months || {}, rm = R.months || {};
+    const lm = (L && L.months) || {}, rm = R.months || {};
     for (const k of new Set([...Object.keys(lm), ...Object.keys(rm)])) {
       if (!lm[k]) out.months[k] = rm[k];
       else if (!rm[k]) out.months[k] = lm[k];
       else out.months[k] = ((rm[k]._u || 0) > (lm[k]._u || 0)) ? rm[k] : lm[k];
     }
-    out.tm = Object.assign({}, R.tm || {}, L.tm || {});
-    const rNewer = (R.updatedAt || 0) > (L.updatedAt || 0);
-    out.settings = rNewer ? (R.settings || L.settings || {}) : (L.settings || R.settings || {});
-    out.presets = rNewer ? (R.presets || L.presets || []) : (L.presets || R.presets || []);
-    out.updatedAt = Math.max(L.updatedAt || 0, R.updatedAt || 0);
+    out.tm = Object.assign({}, R.tm || {}, (L && L.tm) || {});
+    const rNewer = (R.updatedAt || 0) > ((L && L.updatedAt) || 0);
+    out.settings = rNewer ? (R.settings || (L && L.settings) || {}) : ((L && L.settings) || R.settings || {});
+    out.presets = rNewer ? (R.presets || (L && L.presets) || []) : ((L && L.presets) || R.presets || []);
+    out.updatedAt = Math.max((L && L.updatedAt) || 0, R.updatedAt || 0);
     return out;
   }
   function setSyncStatus(msg, kind) {
     const el = $('syncStatus');
     if (el) { el.textContent = msg ? '☁ ' + msg : ''; el.className = 'syncstatus' + (kind ? ' ' + kind : ''); }
   }
-  function renderSyncUI() {
-    const on = Sync.configured();
-    if ($('syncDisconnected')) $('syncDisconnected').hidden = on;
-    if ($('syncConnected')) $('syncConnected').hidden = !on;
-    if ($('syncSummary')) $('syncSummary').textContent = on ? '· aktif' : '· belum aktif';
-    if (on && $('syncGistId')) $('syncGistId').textContent = (Sync.gistId() || '').slice(0, 10) + '…';
+  function renderAuthUI() {
+    const on = Cloud.loggedIn();
+    if ($('authLoggedOut')) $('authLoggedOut').hidden = on;
+    if ($('authLoggedIn')) $('authLoggedIn').hidden = !on;
+    if ($('authBox')) $('authBox').open = !on; // nudge login when logged out
+    if ($('authSummary')) $('authSummary').textContent = on ? '· tersambung' : '· belum masuk';
+    if (on && $('authUserEmail')) $('authUserEmail').textContent = (Cloud.user() && Cloud.user().email) || '';
+    if (!on) setSyncStatus('belum masuk — data belum di cloud', 'err');
   }
   function scheduleSync() {
-    if (syncSuspended || !Sync.configured()) return;
+    if (syncSuspended || !Cloud.loggedIn()) return;
     setSyncStatus('menyimpan…', 'pending');
     clearTimeout(syncTimer);
-    syncTimer = setTimeout(async () => {
-      try { await Sync.push(collectData()); setSyncStatus('tersimpan ' + nowTime(), 'ok'); }
-      catch (e) { setSyncStatus('gagal: ' + e.message, 'err'); }
-    }, 2500);
+    syncTimer = setTimeout(flushSync, 2000);
+  }
+  async function flushSync() {
+    clearTimeout(syncTimer);
+    if (!Cloud.loggedIn()) return;
+    try { await Cloud.save(collectData()); setSyncStatus('tersimpan ' + nowTime(), 'ok'); }
+    catch (e) { setSyncStatus('gagal simpan: ' + e.message, 'err'); }
   }
   async function pullMergeApply() {
-    const remote = await Sync.pull();
+    const remote = await Cloud.load();
     const merged = mergeData(collectData(), remote);
     syncSuspended = true;
     applyData(merged);
     loadState(); renderAll();
     syncSuspended = false;
-    await Sync.push(merged); // keep remote consistent with the merge
+    await Cloud.save(merged); // migrate local data up + keep cloud consistent
   }
   async function initialSync() {
-    renderSyncUI();
-    if (!Sync.configured()) return;
+    if (!Cloud.available()) { renderAuthUI(); return; }
+    await Cloud.refreshUser();
+    renderAuthUI();
+    if (!Cloud.loggedIn()) return;
     setSyncStatus('menyinkronkan…', 'pending');
     try { await pullMergeApply(); setSyncStatus('tersinkron ✓ ' + nowTime(), 'ok'); }
     catch (e) { syncSuspended = false; setSyncStatus('gagal sync: ' + e.message, 'err'); }
+  }
+  async function doAuth(mode) {
+    if (!Cloud.available()) { toast('Cloud belum siap — cek koneksi internet', 'err'); return; }
+    const email = $('authEmail').value.trim(), password = $('authPass').value;
+    if (!email || !password) { toast('Isi email & password dulu', 'err'); return; }
+    const btn = mode === 'signup' ? $('authSignup') : $('authLogin');
+    btn.disabled = true; const old = btn.textContent; btn.textContent = '…';
+    setSyncStatus('masuk…', 'pending');
+    try {
+      if (mode === 'signup') await Cloud.signUp(email, password);
+      else await Cloud.signIn(email, password);
+      $('authPass').value = '';
+      renderAuthUI();
+      await pullMergeApply(); // merge existing local data into cloud + pull
+      setSyncStatus('tersinkron ✓ ' + nowTime(), 'ok');
+      toast('Berhasil masuk ✓ data Anda kini tersimpan di cloud', 'ok');
+    } catch (e) {
+      setSyncStatus('gagal masuk', 'err');
+      toast((mode === 'signup' ? 'Gagal daftar: ' : 'Gagal masuk: ') + e.message, 'err');
+    } finally { btn.disabled = false; btn.textContent = old; }
   }
 
   // ---------- events ----------
@@ -474,33 +502,30 @@
       }
     });
 
-    $('ghConnect').addEventListener('click', async () => {
-      const token = $('ghToken').value.trim();
-      if (!token) { toast('Tempel token GitHub dulu', 'err'); return; }
-      const btn = $('ghConnect'); btn.disabled = true; const old = btn.textContent; btn.textContent = 'Menghubungkan…';
-      try {
-        await Sync.connect(token);
-        $('ghToken').value = '';
-        renderSyncUI();
-        await initialSync();
-        toast('Tersambung & tersinkron ✓', 'ok');
-      } catch (e) { toast('Gagal: ' + e.message, 'err'); }
-      finally { btn.disabled = false; btn.textContent = old; }
+    $('authLogin').addEventListener('click', () => doAuth('login'));
+    $('authSignup').addEventListener('click', () => doAuth('signup'));
+    const authEnter = (e) => { if (e.key === 'Enter') doAuth('login'); };
+    $('authEmail').addEventListener('keydown', authEnter);
+    $('authPass').addEventListener('keydown', authEnter);
+    $('authLogout').addEventListener('click', async () => {
+      await flushSync();
+      try { await Cloud.signOut(); } catch (e) { /* ignore */ }
+      renderAuthUI();
+      toast('Sudah keluar. Data tetap aman di cloud — masuk lagi untuk mengaksesnya.', 'ok');
     });
-    $('syncPull').addEventListener('click', async () => {
-      setSyncStatus('menarik…', 'pending');
-      try { await pullMergeApply(); setSyncStatus('tersinkron ✓ ' + nowTime(), 'ok'); toast('Data terbaru ditarik', 'ok'); }
-      catch (e) { syncSuspended = false; toast('Gagal tarik: ' + e.message, 'err'); }
+    $('cloudPull').addEventListener('click', async () => {
+      setSyncStatus('memuat…', 'pending');
+      try { await pullMergeApply(); setSyncStatus('tersinkron ✓ ' + nowTime(), 'ok'); toast('Data dimuat dari cloud', 'ok'); }
+      catch (e) { syncSuspended = false; toast('Gagal muat: ' + e.message, 'err'); }
     });
-    $('syncPush').addEventListener('click', async () => {
-      setSyncStatus('mengirim…', 'pending');
-      try { await Sync.push(collectData()); setSyncStatus('terkirim ✓ ' + nowTime(), 'ok'); toast('Data dikirim ke cloud', 'ok'); }
-      catch (e) { toast('Gagal kirim: ' + e.message, 'err'); }
+    $('authChangePass').addEventListener('click', async () => {
+      const p = prompt('Password baru (min. 6 karakter):');
+      if (!p) return;
+      try { await Cloud.changePassword(p); toast('Password berhasil diganti', 'ok'); }
+      catch (e) { toast('Gagal ganti password: ' + e.message, 'err'); }
     });
-    $('ghDisconnect').addEventListener('click', () => {
-      if (!confirm('Putuskan sinkronisasi di perangkat ini? Data di cloud tetap ada.')) return;
-      Sync.clear(); renderSyncUI(); setSyncStatus('', ''); toast('Sinkronisasi diputus');
-    });
+    // flush any pending cloud save before the tab is hidden/closed (extra safety)
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushSync(); });
 
     $('exportBtn').addEventListener('click', doExport);
     $('backupBtn').addEventListener('click', doBackup);
@@ -524,7 +549,7 @@
   }
   function renderAll() {
     renderMonthBar(); renderSettings(); renderPresets();
-    renderSummary(); renderDayCard(); renderCalendar(); renderSyncUI();
+    renderSummary(); renderDayCard(); renderCalendar(); renderAuthUI();
   }
   function init() {
     migrate();
