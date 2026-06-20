@@ -1,7 +1,7 @@
 /*
- * app.js — daily-input UX. The hero is a single-day card (defaults to today);
- * a month calendar gives an overview and lets you jump between days. Everything
- * autosaves to localStorage. Export still produces the whole active month.
+ * app.js — daily-input UX. Hero = single-day card (defaults to today); a month
+ * calendar gives an overview/navigation. Cloud-first storage (Supabase) when
+ * logged in; localStorage is the offline cache. Export produces the active month.
  */
 (() => {
   const WD_FULL = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
@@ -10,11 +10,10 @@
   const $ = (id) => document.getElementById(id);
 
   const daysInMonth = (y, m) => new Date(y, m, 0).getDate();
-  const dow = (y, m, d) => new Date(y, m - 1, d).getDay();      // 0=Sun..6=Sat
-  const monIdx = (y, m, d) => (dow(y, m, d) + 6) % 7;            // 0=Mon..6=Sun
+  const dow = (y, m, d) => new Date(y, m - 1, d).getDay();   // 0=Sun..6=Sat
+  const monIdx = (y, m, d) => (dow(y, m, d) + 6) % 7;        // 0=Mon..6=Sun
   const fmt = (n) => String(TimeUtil.round2(n));
   const fmt2 = (n) => n.toFixed(2);
-  // <input type="time"> requires zero-padded "HH:MM" or it silently rejects the value.
   const padTime = (t) => {
     if (!t) return '';
     const m = String(t).match(/^(\d{1,2}):(\d{2})$/);
@@ -29,28 +28,25 @@
   let activeKey, month, selectedDay;
 
   function newMonth(y, m) {
-    const p = Presets.getAll();
-    return { year: y, month: m, defaultAct: p[0] ? p[0].labelId : '', days: {} };
+    return { year: y, month: m, defaultAct: Templates.all()[0].id, days: {} };
   }
-  // one-time migration from the old preset-id model to free Indonesian text
-  function migrate() {
-    const ms = Store.getMonths(); let changed = false;
-    for (const k in ms) {
-      const mo = ms[k];
-      if (mo.defaultActivityId !== undefined) {
-        if (mo.defaultAct == null) { const p = Presets.find(mo.defaultActivityId); mo.defaultAct = p ? p.labelId : ''; }
-        delete mo.defaultActivityId; changed = true;
-      }
+  // normalize stored data to the fixed-template model (drops old free-text / preset ids / notes)
+  function normalizeMonths() {
+    let changed = false;
+    for (const k in months) {
+      const mo = months[k];
+      if (mo.defaultActivityId !== undefined) { delete mo.defaultActivityId; changed = true; }
+      if (mo.defaultAct === undefined || !Templates.find(mo.defaultAct)) { mo.defaultAct = Templates.all()[0].id; changed = true; }
       for (const dk in (mo.days || {})) {
         const dd = mo.days[dk];
-        if (dd.activityId !== undefined) {
-          if (dd.act == null && dd.activityId !== '__none__') { const p = Presets.find(dd.activityId); if (p) dd.act = p.labelId; }
-          delete dd.activityId; changed = true;
-        }
+        if (dd.activityId !== undefined) { delete dd.activityId; changed = true; }
+        if (dd.note !== undefined) { delete dd.note; changed = true; }
+        if (dd.act !== undefined && dd.act !== '__none__' && !Templates.find(dd.act)) { delete dd.act; changed = true; }
       }
     }
-    if (changed) Store.saveMonths(ms);
+    if (changed) Store.saveMonths(months);
   }
+
   function markChanged() { Store.set('kinmu.updatedAt', Date.now()); scheduleSync(); }
   function saveMonth() { month._u = Date.now(); months[activeKey] = month; Store.saveMonths(months); markChanged(); }
   const dayData = (d) => month.days[d] || {};
@@ -60,17 +56,25 @@
   function toast(msg, kind) {
     const t = $('toast');
     t.textContent = msg; t.className = 'toast' + (kind ? ' ' + kind : ''); t.hidden = false;
-    clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 2600);
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 3200);
   }
   function flashSaved() {
     const s = $('savedInd'); s.hidden = false; s.classList.add('show');
     clearTimeout(savedTimer); savedTimer = setTimeout(() => s.classList.remove('show'), 1200);
   }
 
-  // ---------- preset quick-insert ----------
-  function presetInsertOptions() {
-    let html = '<option value="">+ sisipkan frasa…</option>';
-    for (const p of Presets.getAll()) html += '<option value="' + escapeHtml(p.labelId) + '">' + escapeHtml(p.labelId) + '</option>';
+  // ---------- activity option lists ----------
+  function activityOptions(selected) {
+    const opt = (v, t, sel) => '<option value="' + v + '"' + (sel ? ' selected' : '') + '>' + t + '</option>';
+    let html = opt('', '— pakai default bulan —', !selected);
+    html += opt('__none__', '— kosongkan —', selected === '__none__');
+    for (const t of Templates.all()) html += opt(t.id, escapeHtml(t.label), selected === t.id);
+    return html;
+  }
+  function defaultOptions(selected) {
+    let html = '';
+    for (const t of Templates.all()) html += '<option value="' + t.id + '"' + (selected === t.id ? ' selected' : '') + '>' + escapeHtml(t.label) + '</option>';
+    html += '<option value=""' + (!selected ? ' selected' : '') + '>— kosong —</option>';
     return html;
   }
 
@@ -105,7 +109,7 @@
     $('month').innerHTML = MONTHS_ID.map((nm, i) => '<option value="' + (i + 1) + '"' +
       (i + 1 === month.month ? ' selected' : '') + '>' + nm + '</option>').join('');
     $('year').value = month.year;
-    $('defaultActivity').value = month.defaultAct || '';
+    $('defaultActivity').innerHTML = defaultOptions(month.defaultAct);
   }
 
   // ---------- calendar ----------
@@ -121,7 +125,7 @@
       const worked = !!data.start;
       const cuti = Number(data.paidLeave) || 0;
       const hol = !!data.hStart;
-      const weekend = dow(month.year, month.month, d) % 6 === 0; // Sun(0) or Sat(6)
+      const weekend = dow(month.year, month.month, d) % 6 === 0;
       const cls = ['calcell'];
       if (weekend) cls.push('weekend');
       if (d === selectedDay) cls.push('selected');
@@ -146,21 +150,14 @@
     const now = new Date();
     const isToday = now.getFullYear() === month.year && now.getMonth() + 1 === month.month && now.getDate() === selectedDay;
     const weekend = dw % 6 === 0;
-    if (isToday) {
-      badge.hidden = false;
-      badge.textContent = weekend ? 'Hari ini · akhir pekan' : 'Hari ini';
-      badge.className = 'dbadge today';
-    } else if (weekend) {
-      badge.hidden = false; badge.textContent = 'Akhir pekan'; badge.className = 'dbadge we';
-    } else {
-      badge.hidden = true; badge.textContent = ''; badge.className = 'dbadge';
-    }
+    if (isToday) { badge.hidden = false; badge.textContent = weekend ? 'Hari ini · akhir pekan' : 'Hari ini'; badge.className = 'dbadge today'; }
+    else if (weekend) { badge.hidden = false; badge.textContent = 'Akhir pekan'; badge.className = 'dbadge we'; }
+    else { badge.hidden = true; badge.textContent = ''; badge.className = 'dbadge'; }
 
     $('d-start').value = padTime(d.start);
     $('d-end').value = padTime(d.end);
     $('d-brk').value = padTime(d.brk);
-    $('d-act').value = d.act || '';
-    $('d-actPreset').innerHTML = presetInsertOptions();
+    $('d-act').innerHTML = activityOptions(d.act);
     $('d-paid').value = d.paidLeave != null ? String(d.paidLeave) : '';
     const hasHol = !!(d.hStart || d.hEnd || d.hBrk);
     $('d-holiday').checked = hasHol;
@@ -168,7 +165,6 @@
     $('d-hstart').value = padTime(d.hStart);
     $('d-hend').value = padTime(d.hEnd);
     $('d-hbrk').value = padTime(d.hBrk);
-    $('d-note').value = d.note || '';
     updateOvertime();
     updateActHint();
   }
@@ -176,7 +172,7 @@
   function updateOvertime() {
     const start = $('d-start').value, end = $('d-end').value;
     let brk = $('d-brk').value;
-    if (start && !brk) brk = DEFAULT_BREAK; // reflect the break that will be auto-saved
+    if (start && !brk) brk = DEFAULT_BREAK;
     const c = TimeUtil.computeDay(start, end, brk);
     if (c) {
       $('d-ot').textContent = fmt(c.overtime);
@@ -187,17 +183,18 @@
     }
   }
   function updateActHint() {
-    const hint = $('d-actHint');
-    const v = ($('d-act').value || '').trim();
+    const hint = $('d-actHint'); if (!hint) return;
+    const v = $('d-act').value;
+    if (v === '__none__') { hint.className = 'acthint'; hint.textContent = '業務内容 dikosongkan untuk hari ini'; return; }
     if (!v) {
-      const def = (month.defaultAct || '').trim();
+      const def = Templates.find(month.defaultAct);
       hint.className = 'acthint';
-      hint.textContent = def ? '(kosong → pakai default: “' + def + '”)' : '(kosong → 業務内容 dibiarkan kosong)';
+      hint.textContent = def ? '→ pakai default bulan: ' + def.label : '→ default bulan kosong';
       return;
     }
-    const g = Presets.getAll().find((p) => (p.labelId || '').trim() === v && (p.textJa || '').trim());
-    if (g) { hint.className = 'acthint ok'; hint.textContent = '✓ pakai terjemahan tersimpan (glosarium)'; }
-    else { hint.className = 'acthint'; hint.textContent = '↻ diterjemahkan otomatis ke Jepang saat export'; }
+    const t = Templates.find(v);
+    hint.className = 'acthint ok';
+    hint.textContent = t ? '日本語: ' + t.ja : '';
   }
 
   function readDayCard() {
@@ -208,8 +205,8 @@
     let brk = $('d-brk').value;
     if (start && !brk) { brk = DEFAULT_BREAK; $('d-brk').value = DEFAULT_BREAK; }
     if (brk) d.brk = brk;
-    const act = $('d-act').value.trim();
-    if (act) d.act = act; // Indonesian; translated at export. Empty = use month default.
+    const act = $('d-act').value;
+    if (act) d.act = act; // template id; '' = use month default (not stored)
     const paid = $('d-paid').value;
     if (paid) d.paidLeave = Number(paid);
     if ($('d-holiday').checked) {
@@ -220,15 +217,11 @@
       if (hs && !hb) { hb = DEFAULT_BREAK; $('d-hbrk').value = DEFAULT_BREAK; }
       if (hb) d.hBrk = hb;
     }
-    const note = $('d-note').value.trim();
-    if (note) d.note = note;
     return d;
   }
 
   function onDayChange(e) {
-    if (e && e.target && e.target.id === 'd-holiday') {
-      $('holidayBox').hidden = !$('d-holiday').checked;
-    }
+    if (e && e.target && e.target.id === 'd-holiday') $('holidayBox').hidden = !$('d-holiday').checked;
     const d = readDayCard();
     if (Object.keys(d).length === 0) delete month.days[selectedDay];
     else month.days[selectedDay] = d;
@@ -259,15 +252,11 @@
     Store.setActive(activeKey);
     month = months[activeKey] || newMonth(y, m);
     saveMonth();
-    const n = daysInMonth(y, m);
-    selectedDay = Math.min(day || defaultDayFor(y, m), n);
-    renderMonthBar();
-    renderSummary();
-    renderDayCard();
-    renderCalendar();
+    selectedDay = Math.min(day || defaultDayFor(y, m), daysInMonth(y, m));
+    renderMonthBar(); renderSummary(); renderDayCard(); renderCalendar();
   }
 
-  // ---------- settings / presets ----------
+  // ---------- settings ----------
   function renderSettings() {
     $('set-name').value = settings.name || '';
     $('set-seal').value = settings.sealKatakana || '';
@@ -278,15 +267,6 @@
     $('set-agency').value = settings.agency || '';
     $('set-address').value = settings.address || '';
   }
-  function renderPresets() {
-    const ps = Presets.getAll();
-    $('presetList').innerHTML = !ps.length ? '<p class="muted">Belum ada preset.</p>' :
-      ps.map((p) => '<div class="presetitem" data-id="' + p.id + '">' +
-        '<div class="pi-text"><input class="pi-label" type="text" value="' + escapeHtml(p.labelId) + '">' +
-        '<textarea class="pi-ja" rows="2">' + escapeHtml(p.textJa) + '</textarea></div>' +
-        '<div class="pi-actions"><button type="button" class="btn small pi-save">Simpan</button>' +
-        '<button type="button" class="btn small danger pi-del">Hapus</button></div></div>').join('');
-  }
 
   // ---------- export / backup ----------
   async function doExport() {
@@ -294,20 +274,16 @@
     if (!settings.name) {
       if (!confirm('氏名 (Nama) belum diisi di Pengaturan. Export tanpa nama?')) return;
     }
-    const btn = $('exportBtn'); btn.disabled = true; const old = btn.textContent; btn.textContent = 'Menerjemahkan…';
+    const btn = $('exportBtn'); btn.disabled = true; const old = btn.textContent; btn.textContent = 'Memproses…';
     try {
-      const warnings = await Excel.download(month, settings);
-      if (warnings && warnings.length) {
-        toast('Excel dibuat, tapi ' + warnings.length + ' hari gagal diterjemah (offline?) — tgl ' + warnings.join(', ') + ' tetap Indonesia. Export ulang saat online.', 'err');
-      } else {
-        toast('Excel dibuat: ' + Excel.filename(month), 'ok');
-      }
+      await Excel.download(month, settings);
+      toast('Excel dibuat: ' + Excel.filename(month), 'ok');
     } catch (err) { console.error(err); toast('Gagal export: ' + err.message, 'err'); }
     finally { btn.disabled = false; btn.textContent = old; }
   }
   function doBackup() {
     const data = { _app: 'kinmu-report', _v: 1, exportedAt: new Date().toISOString(),
-      settings: Store.getSettings(), presets: Presets.getAll(), months: Store.getMonths(), tm: Store.get(Store.K.tm, {}) };
+      settings: Store.getSettings(), months: Store.getMonths() };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -322,9 +298,8 @@
       try {
         const data = JSON.parse(r.result);
         if (data.settings) Store.saveSettings(data.settings);
-        if (data.presets) Store.set(Store.K.presets, data.presets);
         if (data.months) Store.saveMonths(data.months);
-        if (data.tm) Store.set(Store.K.tm, data.tm);
+        markChanged();
         toast('Restore berhasil, memuat ulang…', 'ok');
         setTimeout(() => location.reload(), 800);
       } catch (err) { toast('File backup tidak valid', 'err'); }
@@ -339,18 +314,14 @@
   function collectData() {
     return { _app: 'kinmu-report', _v: 1,
       updatedAt: Store.get('kinmu.updatedAt', 0) || Date.now(),
-      settings: Store.getSettings(), presets: Presets.getAll(),
-      months: Store.getMonths(), tm: Store.get(Store.K.tm, {}) };
+      settings: Store.getSettings(), months: Store.getMonths() };
   }
   function applyData(d) {
     if (!d) return;
     if (d.settings) Store.saveSettings(d.settings);
-    if (d.presets) Store.set(Store.K.presets, d.presets);
     if (d.months) Store.saveMonths(d.months);
-    if (d.tm) Store.set(Store.K.tm, d.tm);
     Store.set('kinmu.updatedAt', d.updatedAt || Date.now());
   }
-  // months merge per-month by _u; tm union; settings/presets newer-payload wins
   function mergeData(L, R) {
     if (!R || !R._app) return L || R;
     const out = { _app: 'kinmu-report', _v: 1, months: {} };
@@ -360,10 +331,8 @@
       else if (!rm[k]) out.months[k] = lm[k];
       else out.months[k] = ((rm[k]._u || 0) > (lm[k]._u || 0)) ? rm[k] : lm[k];
     }
-    out.tm = Object.assign({}, R.tm || {}, (L && L.tm) || {});
     const rNewer = (R.updatedAt || 0) > ((L && L.updatedAt) || 0);
     out.settings = rNewer ? (R.settings || (L && L.settings) || {}) : ((L && L.settings) || R.settings || {});
-    out.presets = rNewer ? (R.presets || (L && L.presets) || []) : ((L && L.presets) || R.presets || []);
     out.updatedAt = Math.max((L && L.updatedAt) || 0, R.updatedAt || 0);
     return out;
   }
@@ -375,7 +344,7 @@
     const on = Cloud.loggedIn();
     if ($('authLoggedOut')) $('authLoggedOut').hidden = on;
     if ($('authLoggedIn')) $('authLoggedIn').hidden = !on;
-    if ($('authBox')) $('authBox').open = !on; // nudge login when logged out
+    if ($('authBox')) $('authBox').open = !on;
     if ($('authSummary')) $('authSummary').textContent = on ? '· tersambung' : '· belum masuk';
     if (on && $('authUserEmail')) $('authUserEmail').textContent = (Cloud.user() && Cloud.user().email) || '';
     if (!on) setSyncStatus('belum masuk — data belum di cloud', 'err');
@@ -399,7 +368,7 @@
     applyData(merged);
     loadState(); renderAll();
     syncSuspended = false;
-    await Cloud.save(merged); // migrate local data up + keep cloud consistent
+    await Cloud.save(merged);
   }
   async function initialSync() {
     if (!Cloud.available()) { renderAuthUI(); return; }
@@ -422,7 +391,7 @@
       else await Cloud.signIn(email, password);
       $('authPass').value = '';
       renderAuthUI();
-      await pullMergeApply(); // merge existing local data into cloud + pull
+      await pullMergeApply();
       setSyncStatus('tersinkron ✓ ' + nowTime(), 'ok');
       toast('Berhasil masuk ✓ data Anda kini tersimpan di cloud', 'ok');
     } catch (e) {
@@ -435,20 +404,16 @@
   function bindEvents() {
     $('dayCard').addEventListener('change', onDayChange);
     $('dayCard').addEventListener('input', (e) => {
-      // live overtime feedback while typing times, without full re-render churn
       if (['d-start', 'd-end', 'd-brk'].includes(e.target.id)) updateOvertime();
     });
-
     $('calendar').addEventListener('click', (e) => {
       const cell = e.target.closest('.calcell[data-day]');
       if (cell) selectDay(+cell.getAttribute('data-day'), true);
     });
-
     $('dPrev').addEventListener('click', () => { if (selectedDay > 1) selectDay(selectedDay - 1); });
     $('dNext').addEventListener('click', () => {
       if (selectedDay < daysInMonth(month.year, month.month)) selectDay(selectedDay + 1);
     });
-
     $('prevMonth').addEventListener('click', () => {
       let y = month.year, m = month.month - 1; if (m < 1) { m = 12; y--; } switchMonth(y, m);
     });
@@ -462,14 +427,8 @@
     $('year').addEventListener('change', () => {
       const y = +$('year').value; if (y >= 2000 && y <= 2100) switchMonth(y, month.month);
     });
-    $('defaultActivity').addEventListener('input', () => {
-      month.defaultAct = $('defaultActivity').value.trim(); saveMonth();
-      updateActHint(); flashSaved();
-    });
-    $('d-actPreset').addEventListener('change', () => {
-      const v = $('d-actPreset').value; if (!v) return;
-      $('d-act').value = v; $('d-actPreset').value = '';
-      onDayChange();
+    $('defaultActivity').addEventListener('change', () => {
+      month.defaultAct = $('defaultActivity').value; saveMonth(); updateActHint(); flashSaved();
     });
 
     $('saveSettings').addEventListener('click', () => {
@@ -480,26 +439,6 @@
         agency: $('set-agency').value.trim(), address: $('set-address').value.trim(),
       };
       Store.saveSettings(settings); markChanged(); toast('Pengaturan tersimpan', 'ok');
-    });
-
-    $('addPreset').addEventListener('click', () => {
-      const label = $('newLabel').value.trim(), ja = $('newJa').value.trim();
-      if (!label || !ja) { toast('Isi label dan teks Jepang', 'err'); return; }
-      Presets.add(label, ja); markChanged();
-      $('newLabel').value = ''; $('newJa').value = '';
-      renderPresets(); renderMonthBar(); renderDayCard(); toast('Frasa ditambahkan', 'ok');
-    });
-    $('presetList').addEventListener('click', (e) => {
-      const item = e.target.closest('.presetitem'); if (!item) return;
-      const id = item.getAttribute('data-id');
-      if (e.target.classList.contains('pi-save')) {
-        Presets.update(id, item.querySelector('.pi-label').value, item.querySelector('.pi-ja').value);
-        markChanged(); renderMonthBar(); renderDayCard(); toast('Frasa disimpan', 'ok');
-      } else if (e.target.classList.contains('pi-del')) {
-        if (confirm('Hapus frasa ini?')) {
-          Presets.remove(id); markChanged(); renderPresets(); renderMonthBar(); renderDayCard(); toast('Frasa dihapus');
-        }
-      }
     });
 
     $('authLogin').addEventListener('click', () => doAuth('login'));
@@ -524,7 +463,6 @@
       try { await Cloud.changePassword(p); toast('Password berhasil diganti', 'ok'); }
       catch (e) { toast('Gagal ganti password: ' + e.message, 'err'); }
     });
-    // flush any pending cloud save before the tab is hidden/closed (extra safety)
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushSync(); });
 
     $('exportBtn').addEventListener('click', doExport);
@@ -545,19 +483,20 @@
     } else {
       month = months[activeKey];
     }
+    normalizeMonths();
+    month = months[activeKey];
     selectedDay = Math.min(selectedDay || defaultDayFor(month.year, month.month), daysInMonth(month.year, month.month));
   }
   function renderAll() {
-    renderMonthBar(); renderSettings(); renderPresets();
-    renderSummary(); renderDayCard(); renderCalendar(); renderAuthUI();
+    renderMonthBar(); renderSettings(); renderSummary();
+    renderDayCard(); renderCalendar(); renderAuthUI();
   }
   function init() {
-    migrate();
     selectedDay = null;
     loadState();
     renderAll();
     bindEvents();
-    initialSync(); // async: pulls + merges remote if this device is connected
+    initialSync();
   }
   document.addEventListener('DOMContentLoaded', init);
 })();

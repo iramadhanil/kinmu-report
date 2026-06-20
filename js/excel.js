@@ -1,15 +1,14 @@
 /*
  * excel.js — the export engine.
  *
- * Loads the scrubbed template.xlsx, rewrites ONLY the input cells (and the 本人印 seal),
- * flips on "recalculate on open", and re-zips. Every formula, style, merged cell, and the
- * stamp boxes stay byte-for-byte identical.
+ * Loads the scrubbed template.xlsx, rewrites ONLY the input-cell VALUES (and the
+ * 本人印 seal), flips on "recalculate on open", and re-zips. Every formula, style,
+ * border, column width, merged cell, and the stamp boxes stay byte-for-byte
+ * identical — only contents change, never the format.
  *
- * Activity (業務内容) is entered in Indonesian and translated to Japanese at export time:
- *   1) glossary  — exact match to a saved preset label uses that preset's approved Japanese
- *   2) cache     — previously translated phrases are reused (kinmu.tm), stable & offline
- *   3) machine   — Google (primary) then MyMemory (fallback), id -> ja
- * If translation fails (offline), the day's Indonesian text is kept and the day is reported.
+ * Activity (業務内容) is chosen from a fixed template list (js/templates.js); the
+ * export writes that template's pre-approved business Japanese verbatim. No typing,
+ * no machine translation.
  */
 const Excel = (() => {
   const enc = new TextEncoder();
@@ -19,6 +18,8 @@ const Excel = (() => {
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
+  // Rewrite cell `addr` preserving its existing style (s="..") — handles self-closing
+  // (<c r=".." s=".."/>) and paired (<c ..><v>..</v></c>) forms.
   function setCell(xml, addr, type, value) {
     const reShort = new RegExp('<c r="' + addr + '"([^>]*?)/>');
     const reLong = new RegExp('<c r="' + addr + '"([^>]*?)>.*?</c>');
@@ -36,38 +37,6 @@ const Excel = (() => {
 
   const frac = (t) => { const f = TimeUtil.toFraction(t); return f == null ? null : String(f); };
 
-  // ---- translation ----
-  async function googleT(src) {
-    const u = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=id&tl=ja&dt=t&q=' + encodeURIComponent(src);
-    const r = await fetch(u);
-    if (!r.ok) throw new Error('google ' + r.status);
-    const d = await r.json();
-    return d[0].map((s) => s[0]).join('').trim();
-  }
-  async function mymemoryT(src) {
-    const u = 'https://api.mymemory.translated.net/get?langpair=id|ja&q=' + encodeURIComponent(src);
-    const r = await fetch(u);
-    if (!r.ok) throw new Error('mymemory ' + r.status);
-    const d = await r.json();
-    const t = d && d.responseData && d.responseData.translatedText;
-    if (!t) throw new Error('mymemory empty');
-    return String(t).trim();
-  }
-  // returns Japanese string, or null if MT failed (caller keeps Indonesian + warns)
-  async function translateOne(src) {
-    src = (src || '').trim();
-    if (!src) return '';
-    const g = Presets.getAll().find((p) => (p.labelId || '').trim() === src && (p.textJa || '').trim());
-    if (g) return g.textJa.trim();
-    const tm = Store.get(Store.K.tm, {});
-    if (tm[src]) return tm[src];
-    let ja = null;
-    try { ja = await googleT(src); } catch (e) { /* fall through */ }
-    if (!ja) { try { ja = await mymemoryT(src); } catch (e) { /* fall through */ } }
-    if (ja) { tm[src] = ja; Store.set(Store.K.tm, tm); return ja; }
-    return null;
-  }
-
   async function build(month, settings) {
     const resp = await fetch('assets/template.xlsx', { cache: 'no-store' });
     if (!resp.ok) throw new Error('Gagal memuat template (HTTP ' + resp.status + ')');
@@ -77,7 +46,6 @@ const Excel = (() => {
     let sheet = dec.decode(files['xl/worksheets/sheet1.xml']);
     let wb = dec.decode(files['xl/workbook.xml']);
     let draw = files['xl/drawings/drawing1.xml'] ? dec.decode(files['xl/drawings/drawing1.xml']) : null;
-    const warnings = [];
 
     sheet = setCell(sheet, 'A2', 'n', month.year);
     sheet = setCell(sheet, 'E2', 'n', month.month);
@@ -104,16 +72,8 @@ const Excel = (() => {
       if (d.paidLeave) sheet = setCell(sheet, 'X' + r, 'n', Number(d.paidLeave));
 
       const hasWork = d.start || d.hStart;
-      const src = (d.act || d.note || month.defaultAct || '').trim();
-      if (hasWork && src) {
-        const ja = await translateOne(src);
-        if (ja) {
-          sheet = setCell(sheet, 'Y' + r, 'inlineStr', ja);
-        } else {
-          sheet = setCell(sheet, 'Y' + r, 'inlineStr', src); // keep Indonesian, report
-          warnings.push(day);
-        }
-      }
+      const tpl = Templates.find(d.act || month.defaultAct);
+      if (hasWork && tpl) sheet = setCell(sheet, 'Y' + r, 'inlineStr', tpl.ja);
     }
 
     if (!/fullCalcOnLoad/.test(wb)) {
@@ -128,7 +88,7 @@ const Excel = (() => {
     files['xl/workbook.xml'] = enc.encode(wb);
     if (draw) files['xl/drawings/drawing1.xml'] = enc.encode(draw);
 
-    return { bytes: fflate.zipSync(files, { level: 6 }), warnings };
+    return fflate.zipSync(files, { level: 6 });
   }
 
   function filename(month) {
@@ -136,15 +96,14 @@ const Excel = (() => {
   }
 
   async function download(month, settings) {
-    const { bytes, warnings } = await build(month, settings);
+    const bytes = await build(month, settings);
     const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url; a.download = filename(month);
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1500);
-    return warnings;
   }
 
-  return { build, download, filename, setCell, xmlEscape, translateOne };
+  return { build, download, filename, setCell, xmlEscape };
 })();

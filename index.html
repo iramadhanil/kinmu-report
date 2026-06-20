@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@600;700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=5" />
+  <link rel="stylesheet" href="css/styles.css?v=6" />
 </head>
 <body>
   <header class="masthead">
@@ -69,25 +69,23 @@
         <span class="otsub" id="d-worksub"></span>
       </div>
 
-      <label class="full">Aktivitas <span class="jp">業務内容</span> <span class="muted">— tulis Indonesia, diterjemahkan ke Jepang saat export</span>
-        <textarea id="d-act" rows="2" placeholder="mis. Memperbaiki perhitungan biaya komponen yang bermasalah…"></textarea>
+      <label class="full">Aktivitas <span class="jp">業務内容</span> <span class="muted">— pilih, otomatis jadi Jepang saat export</span>
+        <select id="d-act"></select>
       </label>
-      <div class="actrow">
-        <select id="d-actPreset" class="insert" aria-label="Sisipkan frasa tersimpan"></select>
-        <span class="acthint" id="d-actHint"></span>
-      </div>
+      <p class="acthint" id="d-actHint"></p>
 
-      <div class="row2">
-        <label class="sel">Cuti berbayar <span class="jp">有給</span>
-          <select id="d-paid">
-            <option value="">Tidak</option>
-            <option value="0.5">Setengah hari (0.5)</option>
-            <option value="1">Sehari penuh (1.0)</option>
-          </select>
-        </label>
-        <label class="chk"><input type="checkbox" id="d-holiday" /> <span>Kerja di hari libur <span class="jp">休日出勤</span></span></label>
-      </div>
+      <label class="field cuti">Cuti berbayar <span class="jp">有給</span>
+        <select id="d-paid">
+          <option value="">Tidak</option>
+          <option value="0.5">Setengah hari (0.5)</option>
+          <option value="1">Sehari penuh (1.0)</option>
+        </select>
+      </label>
 
+      <label class="toggle" for="d-holiday">
+        <input type="checkbox" id="d-holiday" />
+        <span>Kerja di hari libur <span class="jp">休日出勤</span></span>
+      </label>
       <div class="holidaybox" id="holidayBox" hidden>
         <div class="timegrid">
           <label>Masuk<input type="time" step="900" id="d-hstart" /></label>
@@ -95,16 +93,12 @@
           <label>Istirahat<input type="time" step="900" id="d-hbrk" /></label>
         </div>
       </div>
-
-      <label class="full">Catatan <span class="muted">(opsional)</span>
-        <input type="text" id="d-note" placeholder="mis. Golden Week" />
-      </label>
     </section>
 
     <section class="card calcard">
       <div class="caltop">
         <span class="caltitle">Kalender bulan ini</span>
-        <label class="defact">Aktivitas default (Indonesia) <input type="text" id="defaultActivity" placeholder="dipakai bila hari kerja dikosongkan" /></label>
+        <label class="defact">Aktivitas default <select id="defaultActivity"></select></label>
       </div>
       <div class="weekhead"><span>Sen</span><span>Sel</span><span>Rab</span><span>Kam</span><span>Jum</span><span class="we">Sab</span><span class="we">Min</span></div>
       <div id="calendar" class="calendar"></div>
@@ -155,31 +149,20 @@
       </div>
     </details>
 
-    <details class="card" id="presetBox">
-      <summary>📝 Frasa cepat &amp; glosarium <span class="muted">(Indonesia → Jepang yang sudah Anda setujui)</span></summary>
-      <p class="hint" style="margin-top:10px">Frasa di sini bisa disisipkan cepat ke kolom aktivitas, dan jika teks aktivitas sama persis dengan label di bawah, export memakai teks Jepang ini (bukan terjemahan mesin) — supaya akurat untuk aktivitas berulang.</p>
-      <div id="presetList" class="presetlist"></div>
-      <div class="newpreset">
-        <div class="field grow"><label for="newLabel">Label (Bahasa Indonesia)</label><input id="newLabel" type="text" placeholder="mis. Koreksi biaya komponen + tugas rutin" /></div>
-        <div class="field grow"><label for="newJa">Teks Jepang (業務内容)</label><textarea id="newJa" rows="2" placeholder="mis. 問題のある部品の…"></textarea></div>
-        <button id="addPreset" class="btn primary" type="button">Tambah frasa</button>
-      </div>
-    </details>
-
     <footer class="foot">
-      <p><span class="lock">🔒</span> Semua data tersimpan hanya di browser ini (localStorage). Tidak ada yang dikirim ke server atau ke GitHub. Gunakan <strong>Backup</strong> secara berkala.</p>
+      <p><span class="lock">🔒</span> Saat <strong>masuk</strong>, data tersimpan aman di cloud (proyek Supabase privat Anda) &amp; tersinkron otomatis antar perangkat. Tanpa masuk, data hanya sementara di browser ini.</p>
     </footer>
   </main>
 
   <div id="toast" class="toast" hidden></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="vendor/fflate.min.js?v=5"></script>
-  <script src="js/timeutil.js?v=5"></script>
-  <script src="js/storage.js?v=5"></script>
-  <script src="js/presets.js?v=5"></script>
-  <script src="js/excel.js?v=5"></script>
-  <script src="js/cloud.js?v=5"></script>
-  <script src="js/app.js?v=5"></script>
+  <script src="vendor/fflate.min.js?v=6"></script>
+  <script src="js/timeutil.js?v=6"></script>
+  <script src="js/storage.js?v=6"></script>
+  <script src="js/templates.js?v=6"></script>
+  <script src="js/excel.js?v=6"></script>
+  <script src="js/cloud.js?v=6"></script>
+  <script src="js/app.js?v=6"></script>
 </body>
 </html>
