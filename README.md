@@ -10,7 +10,7 @@ lalu meng-export-nya menjadi file Excel **勤務時間記録表** berbahasa Jepa
 
 1. Buka aplikasinya. Hari ini sudah otomatis terpilih.
 2. Isi **Jam masuk**, **Jam keluar** (istirahat otomatis 1 jam, bisa diubah). Lembur dihitung otomatis.
-3. Tulis **Aktivitas** dalam Bahasa Indonesia (atau set 1 *aktivitas default* untuk semua hari kerja). Saat export, otomatis diterjemahkan ke Jepang.
+3. Pilih **Aktivitas** dari daftar template (atau set 1 *aktivitas default* untuk semua hari kerja). Label Indonesia → otomatis menjadi bahasa Jepang bisnis yang benar saat export.
 4. Untuk **cuti** (有給) atau **kerja hari libur** (休日出勤), pakai pilihan di kartu hari.
 5. Semua **tersimpan otomatis** di browser. Pindah hari lewat kalender atau panah ‹ ›.
 6. Kapan saja, klik **Export bulan ini** → file `.xlsx` Jepang ter-download, siap kirim.
@@ -20,7 +20,7 @@ lalu meng-export-nya menjadi file Excel **勤務時間記録表** berbahasa Jepa
 - Buka **⚙ Pengaturan** dan isi nama (氏名), nama stempel katakana (本人印), perusahaan,
   agen, dan alamat. Data ini **hanya tersimpan di browser Anda** dan disisipkan otomatis
   saat export — tidak ikut ke GitHub.
-- (Opsional) Buka **📝 Frasa cepat & glosarium**: simpan kalimat berulang di sini. Jika teks aktivitas Anda sama persis dengan label tersimpan, export memakai teks Jepang yang sudah Anda setujui (bukan terjemahan mesin) — paling akurat untuk aktivitas rutin.
+- **Aktivitas** dipilih dari 3 template tetap (didefinisikan di `js/templates.js`); tiap template punya teks Jepang bisnis yang sudah disetujui. Untuk mengubah/menambah pilihan, edit file itu.
 
 ## Akun & penyimpanan cloud (data tidak hilang)
 
@@ -41,10 +41,8 @@ jika Anda menghapusnya sendiri.
 
 Saat **masuk**, data Anda tersimpan di proyek **Supabase privat milik Anda sendiri** (cloud,
 sumber utama) dan di-cache di `localStorage` browser. Tanpa masuk, data hanya di `localStorage`.
-**Pengecualian:** saat **export**, teks aktivitas dikirim ke
-layanan terjemah gratis online (Google, fallback MyMemory) untuk diterjemahkan ke Jepang;
-hasilnya di-cache agar tak perlu diterjemah ulang. Aktivitas yang cocok dengan glosarium
-tidak dikirim ke mana pun. Gunakan tombol **Backup (.json)** berkala, **Restore** bila ganti perangkat.
+Aktivitas memakai teks Jepang tetap (tanpa terjemahan online), jadi tidak ada data yang
+dikirim ke layanan pihak ketiga. Gunakan tombol **Backup (.json)** berkala, **Restore** bila ganti perangkat.
 
 ## Cara kerja (teknis singkat)
 
